@@ -6,7 +6,7 @@ from urllib import request
 
 SOURCE_URL = os.environ.get(
     "IPTV_SOURCE_URL",
-    "https://ua.fongmi.eu.org/box.php?url=https://iptv.yang-1989.xyz/playlist.m3u",
+    "http://migu.lengye.top/interfaceTXT.txt",
 )
 OUTPUT_PATH = os.environ.get("IPTV_OUTPUT_PATH", "iptv.txt")
 
