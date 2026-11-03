@@ -2,7 +2,7 @@ name: Update IPTV Playlist
 
 on:
   schedule:
-    - cron: "0 * * * *"  # 每小时第 0 分钟执行
+    - cron: "*/30 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Generate IPTV playlist
+      - name: Generate province-grouped playlist
         run: python3 generate_iptv.py
 
       - name: Commit and push if changed
