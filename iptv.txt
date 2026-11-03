@@ -297,11 +297,10 @@
 秦安电视台,https://play.kankanlive.com/live/1680577080200944.m3u8
 秦安电视台,http://play.kankanlive.com/live/1680577080200944.flv
 其他,#genre#
-2026-11-4 02:01:13,http://play.kankanlive.com/live/1698234869325962.m3u8
+2026-11-4 07:01:21,http://play.kankanlive.com/live/1698234869325962.m3u8
 CCTV1综合,http://play.kankanlive.com/live/1698234869325962.m3u8
 CCTV2财经,http://pull-hls-f11.douyincdn.com/media/stream-120222380172772012.m3u8?expire=1793935312&sign=f89d3d212907bc50963a6244429a5ec0&exp_hrchy=w1&major_anchor_level=common&arch_hrchy=w1&t_id=037-20261030112152D848FC8E5155D0D58B8B-kLkZhk
 CCTV9纪录,http://play.kankanlive.com/live/1698423397390920.m3u8
-CCTV13新闻,http://pull-hls-f11.douyinliving.com/media/stream-408549944117429074.m3u8?expire=1793935410&sign=cb175455e8168c9deab3f9670aaaefbc&arch_hrchy=s2&s_anchor=1&major_anchor_level=vip&t_id=037-2026103011232963788DE1635D1DB9CE86-1dWogG
 CCTV13新闻,http://pull-hls-f11.douyinliving.com/media/stream-696809102791410514.m3u8?expire=1793935438&sign=95632d8c1ee1621604e541b72b76f43a&s_anchor=1&arch_hrchy=s2&major_anchor_level=vip&t_id=037-20261030112358D44A05311EE1EEA03748-UfLez0
 东南卫视,https://hlsbkmgsplive.miguvideo.com/migu/kailu/dongnanws/51/20230724/01.m3u8?&HlsSubType=&encrypt=
 兵团卫视,https://hlsbkmgsplive.miguvideo.com/migu/kailu/btws/51/20250804/01.m3u8?&HlsSubType=&encrypt=
