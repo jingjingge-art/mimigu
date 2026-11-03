@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+"""Convert the Migu TXT/M3U source into province-grouped IPTV text."""
+
 import os
 import re
 import sys
+from collections import defaultdict
 from urllib import request
 
 SOURCE_URL = os.environ.get(
@@ -9,112 +12,128 @@ SOURCE_URL = os.environ.get(
     "http://migu.lengye.top/interfaceTXT.txt",
 )
 OUTPUT_PATH = os.environ.get("IPTV_OUTPUT_PATH", "iptv.txt")
+URL_PREFIXES = ("http://", "https://", "rtmp://", "rtsp://")
+
+PROVINCES = (
+    "黑龙江", "内蒙古", "宁夏", "新疆", "广西", "西藏", "香港", "澳门",
+    "北京", "天津", "上海", "重庆", "河北", "山西", "辽宁", "吉林",
+    "江苏", "浙江", "安徽", "福建", "江西", "山东", "河南", "湖北",
+    "湖南", "广东", "海南", "四川", "贵州", "云南", "陕西", "甘肃",
+    "青海", "台湾",
+)
+
 
 def fetch_text(url: str) -> str:
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept": "application/vnd.apple.mpegurl,text/plain,*/*",
-    }
-    req = request.Request(url, headers=headers)
-    with request.urlopen(req, timeout=30) as resp:
-        data = resp.read()
-    try:
-        return data.decode("utf-8")
-    except UnicodeDecodeError:
-        return data.decode("utf-8", errors="replace")
-
-def sanitize_group(value: str) -> str:
-    v = (value or "其他").strip()
-    return v if v else "其他"
-
-def parse_extinf_attrs(line: str) -> dict:
-    attrs = {}
-    for key, value in re.findall(r'([A-Za-z0-9_-]+)\s*=\s*(".*?"|\'.*?\'|[^\\s]+)', line):
-        val = value.strip().strip('"').strip("'")
-        if val:
-            attrs[key] = val
-    return attrs
-
-def normalize_line(line: str) -> str:
-    line = line.strip()
-    if not line.startswith("#EXTINF"):
-        return line
-
-    attrs = parse_extinf_attrs(line)
-    group_title = (
-        attrs.get("group-title")
-        or attrs.get("tvg-group")
-        or attrs.get("group")
-        or attrs.get("genre")
-        or "其他"
+    req = request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; IPTV playlist updater)",
+            "Accept": "text/plain,*/*",
+        },
     )
-    genre = sanitize_group(group_title)
+    with request.urlopen(req, timeout=30) as response:
+        data = response.read()
+    return data.decode("utf-8-sig", errors="replace")
 
-    title = ""
-    if "," in line:
-        title = line.rsplit(",", 1)[-1].strip()
-    if not title:
-        title = attrs.get("tvg-name") or attrs.get("tvg-id") or "未知频道"
 
-    tvg_id = attrs.get("tvg-id", "")
-    tvg_name = attrs.get("tvg-name", title)
-    tvg_logo = attrs.get("tvg-logo", "")
-    tvg_chno = attrs.get("tvg-chno", "")
-    radio = attrs.get("radio", "")
-    http_referrer = attrs.get("http-referrer", "")
-    http_user_agent = attrs.get("http-user-agent", "")
+def province_for(*hints: str) -> str:
+    text = " ".join(hints)
+    for province in PROVINCES:
+        if province in text:
+            return province
+    return "其他"
 
-    parts = ["#EXTINF:-1"]
-    if tvg_id:
-        parts.append(f'tvg-id="{tvg_id}"')
-    if tvg_name:
-        parts.append(f'tvg-name="{tvg_name}"')
-    if tvg_logo:
-        parts.append(f'tvg-logo="{tvg_logo}"')
-    if tvg_chno:
-        parts.append(f'tvg-chno="{tvg_chno}"')
-    if radio:
-        parts.append(f'radio="{radio}"')
-    if http_referrer:
-        parts.append(f'http-referrer="{http_referrer}"')
-    if http_user_agent:
-        parts.append(f'http-user-agent="{http_user_agent}"')
-    parts.append(f'group-title="{sanitize_group(group_title)}"')
-    parts.append(f'genre="{genre}"')
-    parts.append(f",{title}")
-    return " ".join(parts)
+
+def clean_name(value: str) -> str:
+    # Commas are delimiters in this playlist format.
+    return re.sub(r"\s+", " ", value.replace(",", " ").strip())
+
+
+def parse_extinf_title(line: str) -> str:
+    _, separator, title = line.partition(",")
+    if separator and title.strip():
+        return clean_name(title)
+    match = re.search(r'tvg-name\s*=\s*["\']([^"\']+)["\']', line)
+    return clean_name(match.group(1)) if match else "未知频道"
+
 
 def generate_playlist(raw: str) -> str:
-    lines = raw.splitlines()
-    out = ["#EXTM3U"]
-    for line in lines:
-        s = line.strip()
-        if not s:
-            continue
-        if s.startswith("#EXTINF"):
-            out.append(normalize_line(s))
-            continue
-        if s.startswith(("http://", "https://", "rtmp://", "rtsp://")):
-            out.append(s)
-    return "\n".join(out) + "\n"
+    groups: dict[str, list[tuple[str, str]]] = defaultdict(list)
+    seen: set[tuple[str, str]] = set()
+    source_group = ""
+    pending_name = ""
 
-def main():
+    def add_channel(name: str, url: str, group_hint: str = "") -> None:
+        name = clean_name(name)
+        url = url.strip()
+        if not name or not url.lower().startswith(URL_PREFIXES):
+            return
+        province = province_for(group_hint, name)
+        item = (name, url)
+        if item not in seen:
+            groups[province].append(item)
+            seen.add(item)
+
+    for raw_line in raw.splitlines():
+        line = raw_line.strip().lstrip("\ufeff")
+        if not line:
+            continue
+
+        # TXT playlist category delimiter, for example: 上海,#genre#
+        category = re.fullmatch(r"\s*([^,]+?)\s*,\s*#genre#\s*", line, re.I)
+        if category:
+            source_group = category.group(1).strip()
+            pending_name = ""
+            continue
+
+        if line.startswith("#EXTINF"):
+            pending_name = parse_extinf_title(line)
+            match = re.search(r'group-title\s*=\s*["\']([^"\']+)["\']', line, re.I)
+            if match:
+                source_group = match.group(1).strip()
+            continue
+
+        if line.startswith("#"):
+            continue
+
+        if line.lower().startswith(URL_PREFIXES):
+            if pending_name:
+                add_channel(pending_name, line, source_group)
+                pending_name = ""
+            continue
+
+        # Common TXT form: channel name,URL. Split only at the first comma.
+        name, separator, url = line.partition(",")
+        if separator and url.strip().lower().startswith(URL_PREFIXES):
+            add_channel(name, url, source_group)
+            pending_name = ""
+
+    output = []
+    for province in (*PROVINCES, "其他"):
+        channels = groups.get(province)
+        if not channels:
+            continue
+        # Marker is fixed for player compatibility; only category changes.
+        output.append(f"{province},#genre#")
+        output.extend(f"{name},{url}" for name, url in channels)
+    if not output:
+        raise ValueError("No valid channel name/URL entries found in source")
+    return "\n".join(output) + "\n"
+
+
+def main() -> None:
     try:
         raw = fetch_text(SOURCE_URL)
-    except Exception as e:
-        print(f"Fetch failed: {e}", file=sys.stderr)
-        with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-            f.write("#EXTM3U\n#EXTINF:-1 group-title=\"其他\" genre=\"其他\",Source unavailable\n")
+        playlist = generate_playlist(raw)
+    except Exception as error:
+        print(f"Failed to update playlist: {error}", file=sys.stderr)
+        # Preserve the last known-good playlist instead of replacing it on error.
         raise SystemExit(1)
 
-    playlist = generate_playlist(raw)
-    with open(OUTPUT_PATH, "w", encoding="utf-8") as f:
-        f.write(playlist)
+    with open(OUTPUT_PATH, "w", encoding="utf-8", newline="\n") as output_file:
+        output_file.write(playlist)
     print(f"Saved IPTV playlist to {OUTPUT_PATH}")
+
 
 if __name__ == "__main__":
     main()
